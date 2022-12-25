@@ -34,8 +34,7 @@ HOMEWORK_VERDICTS = {
 
 
 def check_tokens():
-    """проверяет доступность переменных окружения"""
-
+    """Проверяет доступность переменных окружения."""
     if PRACTICUM_TOKEN is None:
         message = ('Отсутствует обязательная переменная окружения: ',
                    'PRACTICUM_TOKEN')
@@ -56,8 +55,7 @@ def check_tokens():
 
 
 def send_message(bot, message):
-    """отправим сообщения в Telegram"""
-
+    """Отправим сообщения в Telegram."""
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logging.debug('Удачная отправка сообщения в Telegram')
@@ -66,8 +64,7 @@ def send_message(bot, message):
 
 
 def get_api_answer(timestamp):
-    """отправляем запрос к эндпоинту"""
-
+    """Отправляем запрос к эндпоинту."""
     try:
         response = requests.get(
             ENDPOINT,
@@ -86,8 +83,7 @@ def get_api_answer(timestamp):
 
 
 def check_response(response):
-    """проверяем наличие ключей и проектов"""
-
+    """Проверяем наличие ключей и проектов."""
     if not type(response) == dict:
         message = 'Тип данных ответа должен быть словарь'
         logging.error(message)
@@ -110,8 +106,7 @@ def check_response(response):
 
 
 def parse_status(homework):
-    """формируем сообщение для телеграмм"""
-
+    """Формируем сообщение для телеграмм."""
     work_status = homework['status']
 
     try:
@@ -129,7 +124,6 @@ def parse_status(homework):
 
 def main():
     """Основная логика работы бота."""
-
     check_tokens()
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
@@ -141,16 +135,16 @@ def main():
 
     while True:
         try:
-            """если уже есть дата последнего запроса"""
+            """Если уже есть дата последнего запроса."""
             from_date_from_cache = response_cache.get('current_date')
             if int(from_date_from_cache) > 0:
                 from_date = from_date_from_cache
 
-            """отправляем запрос, проверяет ответ"""
+            """Отправляем запрос, проверяет ответ."""
             response = get_api_answer(from_date)
             check_response(response)
 
-            """проверяем изменился ли статус"""
+            """Проверяем изменился ли статус."""
             homeworks_from_cache = response_cache.get('homeworks')
 
             if len(homeworks_from_cache) > 0:
@@ -166,7 +160,7 @@ def main():
 
             send_message(bot, message)
 
-            """запоминаем ответ"""
+            """Запоминаем ответ."""
             response_cache['current_date'] = response.get('current_date')
             response_cache['homeworks'] = response.get('homeworks')[0]
 
