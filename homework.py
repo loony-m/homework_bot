@@ -35,6 +35,7 @@ HOMEWORK_VERDICTS = {
 
 def check_tokens():
     """проверяет доступность переменных окружения"""
+
     if PRACTICUM_TOKEN is None:
         message = ('Отсутствует обязательная переменная окружения: ',
                    'PRACTICUM_TOKEN')
@@ -56,22 +57,24 @@ def check_tokens():
 
 def send_message(bot, message):
     """отправим сообщения в Telegram"""
+
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logging.debug('Удачная отправка сообщения в Telegram')
-    except:
+    except Exception:
         logging.error('Сбой при отправке сообщения в Telegram')
 
 
 def get_api_answer(timestamp):
     """отправляем запрос к эндпоинту"""
+
     try:
         response = requests.get(
             ENDPOINT,
             headers=HEADERS,
             params={'from_date': timestamp}
         )
-    except:
+    except Exception:
         logging.error('Сервис недоступен')
 
     if response.status_code != 200:
@@ -108,6 +111,7 @@ def check_response(response):
 
 def parse_status(homework):
     """формируем сообщение для телеграмм"""
+
     work_status = homework['status']
 
     try:
@@ -125,6 +129,7 @@ def parse_status(homework):
 
 def main():
     """Основная логика работы бота."""
+
     check_tokens()
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
