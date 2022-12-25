@@ -1,16 +1,30 @@
-...
+import logging
+import os
+import time
+import requests
+import telegram
+
+from datetime import datetime, timedelta
+from dotenv import load_dotenv
+from exceptions import (CheckAvailiableConstant,
+                        EmptyHomework,
+                        ResponseNot200Status)
 
 load_dotenv()
 
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s, [%(levelname)s], %(message)s'
+)
 
-PRACTICUM_TOKEN = ...
-TELEGRAM_TOKEN = ...
-TELEGRAM_CHAT_ID = ...
+PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
-
+PERIOD_DAY = 30
 
 HOMEWORK_VERDICTS = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
@@ -20,46 +34,142 @@ HOMEWORK_VERDICTS = {
 
 
 def check_tokens():
-    ...
+    """проверяет доступность переменных окружения"""
+    if PRACTICUM_TOKEN is None:
+        message = ('Отсутствует обязательная переменная окружения: ',
+                   'PRACTICUM_TOKEN')
+        logging.critical(message)
+        raise CheckAvailiableConstant(message)
+
+    elif TELEGRAM_TOKEN is None:
+        message = ('Отсутствует обязательная переменная окружения: ',
+                   'TELEGRAM_TOKEN')
+        logging.critical(message)
+        raise CheckAvailiableConstant(message)
+
+    elif TELEGRAM_CHAT_ID is None:
+        message = ('Отсутствует обязательная переменная окружения: ',
+                   'TELEGRAM_CHAT_ID')
+        logging.critical(message)
+        raise CheckAvailiableConstant(message)
 
 
 def send_message(bot, message):
-    ...
+    """отправим сообщения в Telegram"""
+    try:
+        bot.send_message(TELEGRAM_CHAT_ID, message)
+        logging.debug('Удачная отправка сообщения в Telegram')
+    except:
+        logging.error('Сбой при отправке сообщения в Telegram')
 
 
 def get_api_answer(timestamp):
-    ...
+    """отправляем запрос к эндпоинту"""
+    try:
+        response = requests.get(
+            ENDPOINT,
+            headers=HEADERS,
+            params={'from_date': timestamp}
+        )
+    except:
+        logging.error('Сервис недоступен')
+
+    if response.status_code != 200:
+        raise ResponseNot200Status('Код ответа API домашки отличный от 200')
+
+    response = response.json()
+
+    return response
 
 
 def check_response(response):
-    ...
+    """проверяем наличие ключей и проектов"""
+
+    if not type(response) == dict:
+        message = 'Тип данных ответа должен быть словарь'
+        logging.error(message)
+        raise TypeError(message)
+
+    if 'homeworks' not in response:
+        message = 'В ответе отсутствует ключ homeworks'
+        logging.error(message)
+        raise KeyError(message)
+
+    if not type(response['homeworks']) == list:
+        message = 'Тип данных homeworks должен быть список'
+        logging.error(message)
+        raise TypeError(message)
+
+    if len(response['homeworks']) == 0:
+        message = 'За текущий период отсутствуют проекты'
+        logging.error(message)
+        raise EmptyHomework(message)
 
 
 def parse_status(homework):
-    ...
+    """формируем сообщение для телеграмм"""
+    work_status = homework['status']
+
+    try:
+        homework_name = homework['homework_name']
+    except KeyError:
+        logging.error('Отсутствует ключ homework_name')
+
+    try:
+        verdict = HOMEWORK_VERDICTS[work_status]
+    except KeyError:
+        logging.error(f'Неизвестный статус - {work_status}')
 
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
 def main():
     """Основная логика работы бота."""
-
-    ...
+    check_tokens()
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time())
-
-    ...
+    from_date = int((datetime.now() - timedelta(days=PERIOD_DAY)).timestamp())
+    response_cache = {
+        'homeworks': '',
+        'current_date': 0,
+    }
 
     while True:
         try:
+            """если уже есть дата последнего запроса"""
+            from_date_from_cache = response_cache.get('current_date')
+            if int(from_date_from_cache) > 0:
+                from_date = from_date_from_cache
 
-            ...
+            """отправляем запрос, проверяет ответ"""
+            response = get_api_answer(from_date)
+            check_response(response)
+
+            """проверяем изменился ли статус"""
+            homeworks_from_cache = response_cache.get('homeworks')
+
+            if len(homeworks_from_cache) > 0:
+                status_from_cache = response_cache.get('homeworks')['status']
+                status_from_response = response.get('homeworks')[0]['status']
+
+                if status_from_cache != status_from_response:
+                    message = parse_status(response_cache.get('homeworks'))
+                else:
+                    message = 'Статус не изменился с прошлого раза'
+            else:
+                message = parse_status(response.get('homeworks')[0])
+
+            send_message(bot, message)
+
+            """запоминаем ответ"""
+            response_cache['current_date'] = response.get('current_date')
+            response_cache['homeworks'] = response.get('homeworks')[0]
 
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
-            ...
-        ...
+            logging.debug(message)
+        finally:
+            time.sleep(RETRY_PERIOD)
 
 
 if __name__ == '__main__':
