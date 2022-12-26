@@ -35,23 +35,18 @@ HOMEWORK_VERDICTS = {
 
 def check_tokens():
     """Проверяет доступность переменных окружения."""
-    if PRACTICUM_TOKEN is None:
-        message = ('Отсутствует обязательная переменная окружения: ',
-                   'PRACTICUM_TOKEN')
-        logging.critical(message)
-        raise CheckAvailiableConstant(message)
+    fields = {
+        'PRACTICUM_TOKEN': PRACTICUM_TOKEN,
+        'TELEGRAM_TOKEN': TELEGRAM_TOKEN,
+        'TELEGRAM_CHAT_ID': TELEGRAM_CHAT_ID,
+    }
 
-    elif TELEGRAM_TOKEN is None:
-        message = ('Отсутствует обязательная переменная окружения: ',
-                   'TELEGRAM_TOKEN')
-        logging.critical(message)
-        raise CheckAvailiableConstant(message)
-
-    elif TELEGRAM_CHAT_ID is None:
-        message = ('Отсутствует обязательная переменная окружения: ',
-                   'TELEGRAM_CHAT_ID')
-        logging.critical(message)
-        raise CheckAvailiableConstant(message)
+    for name, value in fields.items():
+        if value is None:
+            message = ('Отсутствует обязательная переменная окружения: ',
+                       name)
+            logging.critical(message)
+            raise CheckAvailiableConstant(message)
 
 
 def send_message(bot, message):
@@ -94,12 +89,12 @@ def check_response(response):
         logging.error(message)
         raise KeyError(message)
 
-    if not type(response['homeworks']) == list:
+    if not isinstance(response['homeworks'], list):
         message = 'Тип данных homeworks должен быть список'
         logging.error(message)
         raise TypeError(message)
 
-    if len(response['homeworks']) == 0:
+    if not response['homeworks']:
         message = 'За текущий период отсутствуют проекты'
         logging.error(message)
         raise EmptyHomework(message)
@@ -112,12 +107,12 @@ def parse_status(homework):
     try:
         homework_name = homework['homework_name']
     except KeyError:
-        logging.error('Отсутствует ключ homework_name')
+        raise KeyError('Отсутствует ключ homework_name')
 
     try:
         verdict = HOMEWORK_VERDICTS[work_status]
     except KeyError:
-        logging.error(f'Неизвестный статус - {work_status}')
+        raise KeyError(f'Неизвестный статус - {work_status}')
 
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
@@ -135,16 +130,16 @@ def main():
 
     while True:
         try:
-            """Если уже есть дата последнего запроса."""
+            # Если уже есть дата последнего запроса.
             from_date_from_cache = response_cache.get('current_date')
             if int(from_date_from_cache) > 0:
                 from_date = from_date_from_cache
 
-            """Отправляем запрос, проверяет ответ."""
+            # Отправляем запрос, проверяет ответ.
             response = get_api_answer(from_date)
             check_response(response)
 
-            """Проверяем изменился ли статус."""
+            # Проверяем изменился ли статус.
             homeworks_from_cache = response_cache.get('homeworks')
 
             if len(homeworks_from_cache) > 0:
@@ -160,7 +155,7 @@ def main():
 
             send_message(bot, message)
 
-            """Запоминаем ответ."""
+            # Запоминаем ответ.
             response_cache['current_date'] = response.get('current_date')
             response_cache['homeworks'] = response.get('homeworks')[0]
 
