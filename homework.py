@@ -8,7 +8,8 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from exceptions import (CheckAvailiableConstant,
                         EmptyHomework,
-                        ResponseNot200Status)
+                        ResponseNot200Status,
+                        ServiceError)
 
 load_dotenv()
 
@@ -67,7 +68,7 @@ def get_api_answer(timestamp):
             params={'from_date': timestamp}
         )
     except Exception:
-        logging.error('Сервис недоступен')
+        raise ServiceError('Сервис недоступен')
 
     if response.status_code != 200:
         raise ResponseNot200Status('Код ответа API домашки отличный от 200')
@@ -79,7 +80,7 @@ def get_api_answer(timestamp):
 
 def check_response(response):
     """Проверяем наличие ключей и проектов."""
-    if not type(response) == dict:
+    if not isinstance(response, dict):
         message = 'Тип данных ответа должен быть словарь'
         logging.error(message)
         raise TypeError(message)
@@ -135,6 +136,8 @@ def main():
             if int(from_date_from_cache) > 0:
                 from_date = from_date_from_cache
 
+            can_send = False
+
             # Отправляем запрос, проверяет ответ.
             response = get_api_answer(from_date)
             check_response(response)
@@ -147,13 +150,14 @@ def main():
                 status_from_response = response.get('homeworks')[0]['status']
 
                 if status_from_cache != status_from_response:
+                    can_send = True
                     message = parse_status(response_cache.get('homeworks'))
-                else:
-                    message = 'Статус не изменился с прошлого раза'
             else:
+                can_send = True
                 message = parse_status(response.get('homeworks')[0])
 
-            send_message(bot, message)
+            if can_send:
+                send_message(bot, message)
 
             # Запоминаем ответ.
             response_cache['current_date'] = response.get('current_date')

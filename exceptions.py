@@ -8,3 +8,7 @@ class EmptyHomework(Exception):
 
 class ResponseNot200Status(Exception):
     pass
+
+
+class ServiceError(Exception):
+    pass
